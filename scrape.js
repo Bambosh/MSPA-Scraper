@@ -1,128 +1,28 @@
+//TODO:
+//Sweet Hella Bro 
+//Problem Sleuth Extras
+//Paradox Space
+//Website images
+//A6A5A1x2 combob
+
 const fs = require('fs');
 const mkdirp = require('mkdirp');
 const request = require("request");
-const ytdl = require('youtube-dl');
-var ffb = require('ffbinaries');
+//const ytdl = require('youtube-dl');
+//var ffb = require('ffbinaries');
 
 const startPage = 1901;
-const endPage = 2147;
+const endPage = 1915;
 const totalPages = endPage - startPage + 1;
 var pagesReturned = pagesRequested = 0;
 function currentPage() {return startPage + pagesRequested};
 
-const workerMax = 1;
+const workerMax = 5;
 var workerCount = 0;
 
+var outputDir = "D:/My Files (HDD)/mspaoutput";
+
 var data = {};
-
-function flashTemplate (localPath){
-	var filename = localPath.slice(localPath.lastIndexOf("/") + 1, localPath.lastIndexOf("."));
-
-	var size = {x: 650, y:450};
-	var classes = "";
-	switch (filename){
-		//CLOCKS
-		case "03848": case "03857": case "06649": 
-			size.y = 1612;
-			break;
-		// GENESIS FROG 
-		case "04015": 
-		// JOHN CURSOR
-		case "06202":
-			size.y = 800; 
-			break;
-		// SCRATCH ALTERNIA 
-		case "04050": 
-		// A6A6I1 SELECTION SCREEN
-		case "06277":
-		// A6A6I5 SELECTION SCREENS
-		case "07482": case "07668": case "07677": case "07682": case "07689": case "07692": case "07696": case "07709": case "07721": case "07729": case "07762": case "07800": case "07905":
-			size.y = 650;
-			break;
-		//TYPHEUS 
-		case "07083":
-			size.y = 1400
-			break;
-		//HOMOSUCK ANTHEM
-		case "06240":
-			size.y = 576;
-			break;
-	
-
-		//A6A6I1 SELECTION SCREENS
-		case "06369": case "06394": case "06398": case "06402": case "06413":
-		//VRISKAGRAM 
-		case "07445":
-			size.x = 950;
-			size.y = 600;
-			classes = "fullpage"
-			break;
-		//CASCADE
-		case "04106": 
-		//DOTA
-		case "04812": 
-		//A6A6I4 FULLPAGERS
-		case "07095": case "07122": 
-		//SHE'S 8ACK
-		case "07402": 
-			size.x = 950;
-			size.y = 650;
-			classes = "fullpage"
-			break;
-
-		//REMEM8ER
-		case "07953":
-			size.x = 950;
-			size.y = 675;
-			classes = "fullpage"
-			break;
-
-		//HUGBUNP
-		case "07921":
-			size.x = 950;
-			size.y = 700;
-			classes = "fullpage"
-			break;
-
-		//GOLD PILOT
-		case "A6A6I1":
-			filename = "A6A6I1.swf";
-			size.x = 950;
-			size.y = 750;
-			classes = "fullpage"
-			break;
-		//GAME OVER
-		case "06898":
-			size.x = 950;
-			size.y = 786;
-			classes = "fullpage"
-			break;
-
-		//CROWBARS
-		case "05492": case "05777":
-			size.x = 950;
-			size.y = 1160;
-			classes = "fullpage crowbar"
-			break;
-	}
-
-	var result = 
-`<embed\
- class="flash ${classes}"\
- src="${ localPath }"\
- id="${filename}"\
- quality="high"\
- width="${size.x}px"\
- height="${size.y}px"\
- allowscriptaccess="always"\
- allowfullscreen="false"\
- type="application/x-shockwave-flash"\
- pluginspage="http://www.macromedia.com/go/getflashplayer"\
- alt=""\
->`;
-
-	return result;
-}
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -151,7 +51,7 @@ function lastSecondExceptions(uri){
 var download = function(uri, filename, callback){
 	if (/mspaintadventures\.com/.test(uri)){
 		request.head(uri, function(error, response, body){
-			if ( response.statusCode == 200 ) {
+			if ( !error && response.statusCode == 200 ) {
 				console.log(`${filename.slice(filename.lastIndexOf("/"))} \x1b[33m---> LOCATED MEDIA\x1b[0m`);
 				request(uri).pipe(fs.createWriteStream(filename)).on('close', callback);
 			}
@@ -161,21 +61,21 @@ var download = function(uri, filename, callback){
 			}			
 		});
 	}
-	else if (/youtube/.test(uri)){
-		ytdl.exec(uri, ['-f', 'bestvideo[ext=webm]+bestaudio[ext=webm]/best', `--output=${filename}`], {}, callback); //.%(ext)s
-	}
-	else if (/vimeo/.test(uri)){
-		ytdl.exec(uri, ['-f', 'bestvideo[ext=mp4]+bestaudio[ext=mp4]/best', '--video-password', 'homestuck', `--output=${filename}`], {}, callback); //.%(ext)s
-	}
+	// else if (/youtube/.test(uri)){
+	// 	ytdl.exec(uri, ['-f', 'bestvideo[ext=webm]+bestaudio[ext=webm]/best', `--output=${filename}`], {}, callback); //.%(ext)s
+	// }
+	// else if (/vimeo/.test(uri)){
+	// 	ytdl.exec(uri, ['-f', 'bestvideo[ext=mp4]+bestaudio[ext=mp4]/best', '--video-password', 'homestuck', `--output=${filename}`], {}, callback); //.%(ext)s
+	// }
 	else {
-		console.log(`${filename.slice(filename.lastIndexOf("/"))} \x1b[33m---> Has an unrecognised domain. Not downloading that.\x1b[0m`);
+		console.log(`${uri} \x1b[33m---> Has an unrecognised domain. Not downloading that.\x1b[0m`);
 	}
 };
 
 //Media is array of links to images/flashes
 function downloadMedia(media){
 	return new Promise(function(resolve, reject) {
-		
+		console.log(media);
 		if (!Array.isArray(media))
 			media = [media];
 		
@@ -184,7 +84,7 @@ function downloadMedia(media){
 
 		for (var i = 0; i < totalDownloads; i++){
 			media[i] = media[i].replace(/www(\.mspa)/, "cdn$1");
-			localUrl = media[i].replace(/^(.*?)\.com/, "..")
+			localUrl = media[i].replace(/^(.*?)\.com/, `${outputDir}`)
 							.replace(/(\/advimgs\/)/, "/storyfiles/")
 							.replace(/(\/ryanquest\/)/, "/storyfiles$1")
 							.replace(/(Sfiles\/)/, "");
@@ -260,7 +160,7 @@ function getPageNumber(s, p) {
 			pAlt = p;
 			break;
 	}
-	return (sAlt + "/" + pAlt);
+	return [sAlt, pAlt];
 }
 
 
@@ -337,6 +237,8 @@ function matchExternalLink(url) {
 		case "http://homestuck.bandcamp.com/album/colours-and-mayhem-universe-a":
 			break;
 
+			//DINOSAUR COMICS???????????????????????????
+
 		default:
 			isExternalPage = false;
 	}
@@ -382,7 +284,8 @@ function convertPostlinkToDownloadableLink(url) {
 
 	let scraps = "storyfiles/hs2/scraps/";
 	if (/tinyurl\.com/.test(url)){
-		url	.replace(/tinyurl\.com/, "www.mspaintadventures.com")
+		url = url	
+			.replace(/tinyurl\.com/, "www.mspaintadventures.com")
 			.replace("sprite", "01.jpg")
 			.replace("power", "02.jpg")
 			.replace("internet", "03.jpg")
@@ -422,7 +325,8 @@ function convertPostlinkToDownloadableLink(url) {
 			.replace(`JAKETHISISUS`, `${scraps}JAKETHISISUS.gif`)
 	}
 	else if (/goo\.gl/.test(url)){
-		url	.replace(/goo\.gl/, "www.mspaintadventures.com")
+		url = url
+			.replace(/goo\.gl/, "www.mspaintadventures.com")
 			.replace(`BPSnY`, `${scraps}smuut1.gif`)
 			.replace(`cTQZ6`, `${scraps}smuut2.gif`)
 			.replace(`WQ0CU`, `${scraps}smuut3.gif`)
@@ -452,13 +356,13 @@ function convertPostlinkToDownloadableLink(url) {
 	}
 
 	if (/\/waywardvagabond\//.test(url)){
-		url = checkforWaywardPages(url);
+		url = getWaywardPages(url);
 	}
 
 	return url;
 }
 
-function checkforWaywardPages(url){
+function getWaywardPages(url){
 	var vagabondImages = [];
 	var vagabondId = url.match(/(?<=waywardvagabond\/)[A-Za-z]*/)[0];
 	var root = "http://www.mspaintadventures.com/storyfiles/hs2/waywardvagabond/"
@@ -506,7 +410,7 @@ function weaveArrays(array1, array2){
 	return result.join("");
 }
 
-function filterPostlinks(html) {
+function filterHtml(html) {
 	let postlinks = html.match(/<(?:img|a).*?>/g);
 	let htmlSplit = html.split(/<(?:img|a).*?>/);
 	let downloads = [];
@@ -519,6 +423,7 @@ function filterPostlinks(html) {
 			let isExternalPage = externalResult[1];
 			if (!isExternalPage){
 				link = convertPostlinkToDownloadableLink(link);
+				console.log(link)
 				downloads = downloads.concat(link); 
 			}
 
@@ -528,61 +433,14 @@ function filterPostlinks(html) {
 		html = weaveArrays(htmlSplit, postlinks);
 	}
 
-	return [html, downloads];
-}
-
-function assembleHtml(title, text, media, pageId) {
-	var html = "";
-	var page = pageId.split("/")[1];
-
-	html+= `<section class="page" id="${pageId}">`;
-
-	html += `<h1 class="page-title">${ title }</h1>`;
-
-	media.forEach( (url) =>{
-		let localPath = url.replace(/^(.*?)\.com/, ".");
-		let mediaNumber = localPath.slice(localPath.lastIndexOf("/")+1, localPath.lastIndexOf("."))
-		if (/\.swf/.test(localPath)){
-			html += flashTemplate(localPath);
-		}
-		//OPENBOUND USES IFRAMES TO DISPLAY CONTENT
-		else if (page == "007163" || page == "007208" || page == "007298" ){			
-			localPath = localPath.replace(/Sburb\.min\.js/, `${mediaNumber}.html`);
-			html += `<iframe id="inlineSburb" title="Openbound" width="650" height="450" src="${ localPath }" scrolling="no"></iframe>`;
-		}
-		else if (/(\.webm|\.mp4)/.test(localPath)){ 
-			html += `<video controls autoplay id="${mediaNumber}"><source src="${ localPath }" type="video/${ localPath.match(/(webm|mp4)/)[0] }"></video>`;
-		}
-		else {
-			html += `<img class="pic" id="${ localPath.slice(localPath.lastIndexOf("/")) }" src="${ localPath }" alt="" />`;
-		}
-	});
-
-
-	//PAGE IS A LOG
-	if (/\|.*?\|/.test(text)){
-		let beforeLog = text.match(/.*(?=\|.*?\|)/)[0];
-		let afterLog = text.replace(beforeLog, "");
-		html += (
-				`<div class="beforeLog">${ beforeLog }</div>` +
-				`<div class="log hidden">`+
-				`<button type="button" onclick="loggle();">${ afterLog.match(/(?<=\|)(.*?)(?=\|)/)[0].toLowerCase() }</button>`+
-				`<section id="logContent">${ afterLog.replace(/\|.*?\|(\r?\n)/, "") }</section>`+
-				`</div>`);
-	}
-	//PAGE IS REGULAR TEXT
-	else{
-		html += `<div class="text">${ text }</div>`;
-	}
-
-	html+= `</section>`;
-	
 	html = html.replace(/(\r?\n)/gm, "<br />")
 				.replace('trkstrlog', "tricksterlog")
+				.replace('sriousbiz', 'serious business')
 				.replace(/http\:\/\/(www|cdn)\.mspaintadventures\.com/g, ".")
 				.replace(/\/advimgs\//gm, "/storyfiles/")
 				.replace(/\/ryanquest\//gm, "/storyfiles/ryanquest/");
-	return html;
+
+	return [html, downloads];
 }
 
 //Tries not to overwrite pre-existing object
@@ -682,7 +540,7 @@ function getScratchBanner(page){
 		bannerNumber = (79 - (5774 - num)).toString().padStart(2, "0");
 	}
 
-	result = `<img class="scratchBanner" src="${mspa}scratch/room${bannerNumber}.gif" ${hoverText}alt="">`;
+	result = `<img class="banner" src="${mspa}scratch/room${bannerNumber}.gif" ${hoverText}alt="" />`;
 	if (num >= 5976)
 		result += `<img class="scratchBanner-imgtooltip" src="${mspa}scraps/LEtext${ LEnumber }.gif" alt=""><script src="./plugins/ddimgtooltips.js"></script>`;
 	return result;
@@ -692,11 +550,8 @@ function getScratchBanner(page){
 async function processPage(rawPage, pageId, statusCode){
 	if (statusCode == 200){	
 
-		let story = pageId.split("/")[0];
-		let page = pageId.split("/")[1];
-		let pageNumber = getPageNumber(story, page);
-
-		/*	Get parts from raw page	
+		/*	
+		Get parts from raw page	
 			[0]: Title
 			[1]: Forum ID (Useless)
 			[2]: Timestamp
@@ -704,27 +559,33 @@ async function processPage(rawPage, pageId, statusCode){
 			[4]: Text
 			[5]: Next Page
 		*/
+
+		let story = pageId.split("/")[0];
+		let page = pageId.split("/")[1];
+
+		//Format page into trimmed array
 		parts = rawPage.split("###");
 		for (var i = 0; i < parts.length; i++){
 			parts[i] = parts[i].trim();
 		};
-
-		let textContent = parts[4];
-		if (parseInt(page) >= 5664 && parseInt(page) <= 5981) {
+		
+		/* if (parseInt(page) >= 5664 && parseInt(page) <= 5981) {
 			textContent = getScratchBanner(page) + textContent;
-		}
-		let filteredPostlinks = filterPostlinks(textContent);
-		textContent = filteredPostlinks[0];
+		} */
+
+		let textContent;
+		let toDownload;
+		[textContent, toDownload] = filterHtml(parts[4]);
 
 		let media = filterMedia(parts[3], page);
-		let toDownload = media.concat(filteredPostlinks[1]);
-
-		let htmlContent = assembleHtml(parts[0], textContent, media, pageId);
+		toDownload = media.concat(toDownload);
+		media = media.map(x => x.replace(/http\:\/\/(www|cdn)\.mspaintadventures\.com/g, ""));
 
 		//Gets array of next page IDs
 		let nextId = parts[5].split(/\r?\n/);
 		nextId.pop(); //GETS RID OF EOF CHARACTER X
 
+		//Inits next page if it doesnt exist
 		nextId.forEach((id) =>{
 			let nextPageObject = {previous: page}
 			addObjectToData(nextPageObject, story, id);
@@ -734,17 +595,17 @@ async function processPage(rawPage, pageId, statusCode){
 		//Page object is assembled
 		pageObject = {
 			title: parts[0],
-			pageId: pageId,
-			pageNumber: pageNumber,
+			pageId: [story, page],
+			pageNumber: getPageNumber(story, page),
 			timestamp: parts[2],
-			content: htmlContent,
+			media: media,
+			content: textContent,
 			next: nextId,
 		};
-		addObjectToData(pageObject, story, page)
+		addObjectToData(pageObject, story, page);
 		
 		console.log(`${pageId}\x1b[36m -> PAGE OBJECT GENERATED\x1b[0m`);
 		toDownload = unretcon(toDownload);
-		console.log(toDownload);
 		console.log(`${pageId}\x1b[31m --> DOWNLOADING MEDIA\x1b[0m`);
 		await downloadMedia(toDownload);
 	}
@@ -885,7 +746,7 @@ function scrape(){
 	else if (pagesReturned == totalPages){
 		console.log("Task complete.");
 		let json = JSON.stringify(data);
-		fs.writeFile('../story.json', json, 'utf8', () =>{
+		fs.writeFile(`${outputDir}/story.json`, json, 'utf8', () =>{
 			console.log("JSON Saved.");
 			process.exit();
 		});
@@ -904,18 +765,18 @@ function initialize(){
 	}
 
 	//begin process
-	let hasffmpeg = ffb.locateBinariesSync(['ffmpeg'], { paths: "./", ensureExecutable: true }).ffmpeg.found;
-	if (!hasffmpeg){
-		console.log('Downloading ffmpeg.');
-		ffb.downloadBinaries(['ffmpeg'], {}, function () {
-			console.log('Downloaded ffmpeg. starting scraper');
-			scrape();
-		});
-	}
-	else{
+	// let hasffmpeg = ffb.locateBinariesSync(['ffmpeg'], { paths: "./", ensureExecutable: true }).ffmpeg.found;
+	// if (!hasffmpeg){
+	// 	console.log('Downloading ffmpeg.');
+	// 	ffb.downloadBinaries(['ffmpeg'], {}, function () {
+	// 		console.log('Downloaded ffmpeg. starting scraper');
+	// 		scrape();
+	// 	});
+	// }
+	// else{
 		console.log('ffmpeg already exists. starting scraper');
 		scrape();
-	}
+	//}
 }
 
 initialize();
