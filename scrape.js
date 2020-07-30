@@ -1,65 +1,108 @@
-//TODO:
-//Sweet Hella Bro 
-//Problem Sleuth Extras
-//Paradox Space
-//Website images
-//A6A5A1x2 combob
-
 const fs = require('fs');
 const mkdirp = require('mkdirp');
-const request = require("request");
+const {JSDOM} = require('jsdom');
+const got = require("got");
+const stream = require('stream');
+const pipeline = require('util').promisify(stream.pipeline);
+const iconv = require('iconv-lite');
+
 //const ytdl = require('youtube-dl');
 //var ffb = require('ffbinaries');
 
-const startPage = 1901;
-const endPage = 1915;
-const totalPages = endPage - startPage + 1;
-var pagesReturned = pagesRequested = 0;
-function currentPage() {return startPage + pagesRequested};
+var data;
+const dataOptions = new Set([
+	"jb",
+	"bq",
+	"ps",
+	"beta",
+	"hs1",
+	"hs2",
+	"hs3",
+	"hs4",
+	"rq",
+	"logs",
+	"psExtras",
+	"wv",
+	"sbahj",
+	"extraMedia",
+	// "custom"
+])
 
-const workerMax = 5;
+var pages, pagesCompleted, totalPages;
+
+const workerMax = 100;
 var workerCount = 0;
 
 var outputDir = "D:/My Files (HDD)/mspaoutput";
 
-var data = {};
-
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
 
 function lastSecondExceptions(uri){
+
 	return uri
 			.replace( 'darkcage.swf', 'kcage.swf' )
 			.replace( 'darkcage2.swf', 'cage2.swf' )
+			.replace( /storyfiles\/hs2\/04812/, "DOTA")
 			.replace( /storyfiles\/hs2\/05492/, "007395")
-			.replace( /storyfiles\/hs2(\/05777\.)gif/, "007680$1swf")
+			.replace( /storyfiles\/hs2\/05777/, "007680")
+			.replace( /storyfiles\/hs2\/06898/, "GAMEOVER")
+			.replace( /storyfiles\/hs2\/07402/, "shes8ack")
 			.replace( '06276.swf', 'A6A6I1.swf' )
-			.replace( /06898(\/06898\.)gif/, "GAMEOVER$1swf")
 
-			.replace( /.*bunny\.mp4/, "https://vimeo.com/343697526" ) //Bunny 001920
-			.replace( /.*howdoilive\.mp4/, "https://vimeo.com/343699455" ) //How do I live 004572
-			.replace( /.*miracles\.mp4/, "https://vimeo.com/343702481" ) //Miracles 004718
-			.replace( /.*rufio\.mp4/, "https://vimeo.com/343697335" ) //Rufio 005286
-			.replace( /.*midnightcrew\.mp4/, "https://vimeo.com/343693205" ) //Midnight Crew 005627
+			// .replace( /.*bunny\.mp4/, "https://vimeo.com/343697526" ) //Bunny 001920
+			// .replace( /.*howdoilive\.mp4/, "https://vimeo.com/343699455" ) //How do I live 004572
+			// .replace( /.*miracles\.mp4/, "https://vimeo.com/343702481" ) //Miracles 004718
+			// .replace( /.*rufio\.mp4/, "https://vimeo.com/343697335" ) //Rufio 005286
+			// .replace( /.*midnightcrew\.mp4/, "https://vimeo.com/343693205" ) //Midnight Crew 005627
 
-			.replace( /.*08080\.webm/, "https://www.youtube.com/watch?v=Y5wYN6rB_Rg") //EOA6
-			.replace( /.*08120\.webm/, "https://www.youtube.com/watch?v=FevMNMwvdPw") //A7
-			.replace( /.*08123\.webm/, "https://www.youtube.com/watch?v=rMZU89jY2j8") //Credits
+			// .replace( /.*08080\.webm/, "https://www.youtube.com/watch?v=Y5wYN6rB_Rg") //EOA6
+			// .replace( /.*08120\.webm/, "https://www.youtube.com/watch?v=FevMNMwvdPw") //A7
+			// .replace( /.*08123\.webm/, "https://www.youtube.com/watch?v=rMZU89jY2j8") //Credits
 }
 
-var download = function(uri, filename, callback){
+async function download (uri, filename){
+	let result = false;
 	if (/mspaintadventures\.com/.test(uri)){
-		request.head(uri, function(error, response, body){
-			if ( !error && response.statusCode == 200 ) {
-				console.log(`${filename.slice(filename.lastIndexOf("/"))} \x1b[33m---> LOCATED MEDIA\x1b[0m`);
-				request(uri).pipe(fs.createWriteStream(filename)).on('close', callback);
+		let remainingTries = 3;
+		let cdnToggleAttempted = false;
+		do {
+			try {
+				const response = await got(uri);
+				if ( response.statusCode == 200 ) {
+					console.log(`${filename.slice(filename.lastIndexOf("/"))} \x1b[33m---> LOCATED MEDIA\x1b[0m`);
+					await pipeline(got.stream(uri), fs.createWriteStream(filename));
+					result = true;
+					remainingTries = 0;
+				}
+			} catch (error) {
+				console.log(error)
+				if (error.response && error.response.statusCode == "404") {
+					if (!cdnToggleAttempted) {
+						console.log(`${error.response.statusCode} "${uri}" not found on CDN. Switching to main server.`);
+						uri = uri.replace(/cdn(\.mspa)/, "www$1")
+						cdnToggleAttempted = true;
+					}
+					else {
+						console.log(`${error.response.statusCode} "${uri}" not found. Skipping.`);
+						remainingTries = 0;
+					}
+				}
+				if (error.response && error.response.statusCode == "400") {
+					console.log(`${error.response.statusCode} "${uri}" was invalid. Trying ${remainingTries} more time(s).`);			
+					remainingTries--;
+					if (remainingTries <= 0) {						
+						console.log(`${uri} \x1b[33m---> FAILED TO DOWNLOAD MULTIPLE TIMES. SKIPPING.\x1b[0m`);
+					}
+					
+				}
+				else {
+					console.log(`${error} Something went wrong downloading "${uri}" Trying ${remainingTries} more time(s).`);
+					remainingTries--;
+					if (remainingTries <= 0) {						
+						console.log(`${uri} \x1b[33m---> FAILED TO DOWNLOAD MULTIPLE TIMES. SKIPPING.\x1b[0m`);
+					}
+				}
 			}
-			else{
-				console.log("File not found. Skipping.");
-				callback();
-			}			
-		});
+		} while (remainingTries > 0);
 	}
 	// else if (/youtube/.test(uri)){
 	// 	ytdl.exec(uri, ['-f', 'bestvideo[ext=webm]+bestaudio[ext=webm]/best', `--output=${filename}`], {}, callback); //.%(ext)s
@@ -68,131 +111,99 @@ var download = function(uri, filename, callback){
 	// 	ytdl.exec(uri, ['-f', 'bestvideo[ext=mp4]+bestaudio[ext=mp4]/best', '--video-password', 'homestuck', `--output=${filename}`], {}, callback); //.%(ext)s
 	// }
 	else {
-		console.log(`${uri} \x1b[33m---> Has an unrecognised domain. Not downloading that.\x1b[0m`);
+		console.log(`${uri} \x1b[33m---> Has a non-MSPA domain. Not downloading that.\x1b[0m`);
 	}
+	return result;
 };
 
 //Media is array of links to images/flashes
-function downloadMedia(media){
-	return new Promise(function(resolve, reject) {
-		console.log(media);
-		if (!Array.isArray(media))
-			media = [media];
-		
-		let finishedDownloads = 0;
-		let totalDownloads = media.length;		
+async function downloadMedia(media){
+	console.log("No downloading this time")
+	return 
 
-		for (var i = 0; i < totalDownloads; i++){
-			media[i] = media[i].replace(/www(\.mspa)/, "cdn$1");
-			localUrl = media[i].replace(/^(.*?)\.com/, `${outputDir}`)
-							.replace(/(\/advimgs\/)/, "/storyfiles/")
-							.replace(/(\/ryanquest\/)/, "/storyfiles$1")
-							.replace(/(Sfiles\/)/, "");
+	if (!Array.isArray(media))
+		media = [media];
+	
+	let finishedDownloads = 0;
+	let totalDownloads = media.length;
 
-			localPath = localUrl.slice(0, localUrl.lastIndexOf("/"));
+	for (var i = 0; i < totalDownloads; i++){
+		media[i] = media[i].replace(/www(\.mspa)/, "cdn$1");
+		localUrl = media[i].replace(/^(.*?)\.com/, `${outputDir}`);
 
-			uri = lastSecondExceptions(media[i]);
+		localPath = localUrl.slice(0, localUrl.lastIndexOf("/"));
 
-			if (!/mspaintadventures|youtube|vimeo/.test(uri)){
-				console.log(`${localUrl.slice(localUrl.lastIndexOf("/"))} \x1b[33m---> Has an unrecognised domain. Not downloading that.\x1b[0m`);
-				finishedDownloads += 1;
-				if (finishedDownloads == totalDownloads) resolve("Download Finished");
-				continue
-			}
+		uri = lastSecondExceptions(media[i]);
 
-			if (fs.existsSync(localUrl)){
-				console.log(localUrl + " Already exists. Skipping download");
-				finishedDownloads += 1;
-				if (finishedDownloads == totalDownloads) resolve("Download Finished");
-				continue;
-			} 
-			if (!fs.existsSync(localPath)) {
-			  	mkdirp(localPath, function (err) {
-					if (err) console.error(err); 
-					else console.log('Directory created for ' + localPath);
-				});
-			}
-			
-			download(uri, localUrl, (err, output)=>{
-				//console.log (`\x1b[42m \x1b[30m DOWNLOADED\x1b[0m ${media[i]}`);
-				if (err) throw err;
-			    if (output) console.log(output.join('\n'));
-				finishedDownloads += 1;
-				if (finishedDownloads == totalDownloads) resolve("Download Finished");
-			});
-			
+		if (!/mspaintadventures|youtube|vimeo/.test(uri)){
+			console.log(`${localUrl.slice(localUrl.lastIndexOf("/"))} \x1b[33m---> Has an unrecognised domain. Not downloading that.\x1b[0m`);
+			finishedDownloads += 1;
+			if (finishedDownloads == totalDownloads) return;
+			continue;
 		}
-	});
-}
 
+		if (fs.existsSync(localUrl) && fs.statSync(localUrl)['size'] > 0){
+			console.log(localUrl + " Already exists. Skipping download");
+			finishedDownloads += 1;
+			if (finishedDownloads == totalDownloads) return;
+			continue;
+		} 
 
-//Calculates Homestuck.com style page number
-function getPageNumber(s, p) {
-	let sAlt, pAlt;
-	switch(s){
-		case "1":
-			sAlt = "jailbreak";
-			pAlt = (parseInt(p) - 1).toString();
-			break;
-		case "2":
-			sAlt = "bard-quest";
-			if (p == 136) pAlt = "1";
-			else pAlt = (parseInt(p) - 169).toString();
-			break;
-		case "3":
-			sAlt = "blood-spade";
-			pAlt = "1";
-			break;
-		case "4":
-			sAlt = "problem-sleuth";
-			pAlt = (parseInt(p) - 218).toString();
-			break;
-		case "5":
-			sAlt = "beta";
-			pAlt = (parseInt(p) - 1892).toString();
-			break;
-		case "6":
-			sAlt = "story";
-			pAlt = (parseInt(p) - 1900).toString();
-			break;
-		case "ryanquest": 
-			sAlt = s;
-			pAlt = p;
-			break;
+		if (!fs.existsSync(localPath)) {
+				mkdirp.sync(localPath, function (err) {
+				if (err) console.error(err); 
+				else console.log('Directory created for ' + localPath);
+			});
+		}
+
+		let result = await download(uri, localUrl);
+		if (result){
+			console.log (`\x1b[42m \x1b[30m DOWNLOADED\x1b[0m ${media[i]}`);
+			finishedDownloads += 1;
+			if (finishedDownloads == totalDownloads) return;
+		}
+		
 	}
-	return [sAlt, pAlt];
 }
 
-
-function filterMedia(media, page){
+async function filterMedia(media, page){
 	media = media.split(/\r?\n/);
 	for (var i = 0; i < media.length; i++){
+		
 		media[i] = media[i]
-			.replace(/F\|(.*)\/([0-9]{5})/, "$1/$2/$2.swf") 			
-			.replace(/S\|([^S]*)(?:\/Sfiles)?(\/(?:\d){5})/, "$1$2$2.gif")
-			.replace(/(06276)\.gif/, "A6A6I1.swf")
-			.replace(/(06379|06394|06398|06402|06413|07095|07122|07445|07921|07953)\.gif/, "$1.swf")
-			.replace(/\/(0808[2-7])\.gif/, `heal.png`)
-			.replace(/\/(080(8[89]|9[0-3]))\.gif/, `mspaint.png`)
-			.replace(/\/(0809[4-9])\.gif/, `ah.png`)
-			.replace(/\/(0810[0-4])\.gif/, `rings.png`)
-			.replace(/\/(081(0[5-9]|10))\.gif/, `lilypad.png`)
-			.replace(/\/(0811[1-9])\.gif/, `johndad.png`)
-			.replace(/(08080|08120)\.gif/, "$1/$1.webm") //EOA6 & A7
-			.replace(/(08123)\.swf/, "$1.webm")	//CREDITS
-			.replace(/J\|(.*)/, "$1/Sburb.min.js")
-			.replace(/(.*)(05260)/, '$1/levels/openbound/openbound.xml' )
-			.replace(/(.*)(05305|05395)/, '$1/levels/init.xml' );
+			.replace(/F\|(.*)\/(\w*)$/, "$1/$2/$2.swf") 	
+			.replace(/J\|(.*)\/(\w*)$/, "$1/$2/$2.html")		
+			.replace(/(04106|05777|06898|07402)(?:\.gif)?/, "$1/$1.swf") // (CROWBAR 1, 2, GAME OVER, shes8ack)
+
+			.replace(/(08080|08120)\.gif/, "$1/$1.mp4") //EOA6 & A7
+			.replace(/(08123)\.swf/, "$1.mp4")	//CREDITS
+
+			if (/^S\|/.test(media[i])) {
+				await (async () => {
+					try {	
+						var response = await got(media[i].replace(/^S\|/, ""));
+						var dom = new JSDOM(response.body)
+						let url = dom.window.document.getElementsByTagName('img')[0];
+						if (url) {
+							url = url.src	
+						} else {
+							url = dom.window.document.getElementsByName('movie')[0].value;
+						}
+						dom.window.close();
+
+						media[i] = url;
+					}
+					catch (error) {
+						console.log(error + "Sfiles fuckin cockblocked us")
+						process.exit();
+					}
+				})();
+			}
 	}
 	return media;
 }
 
-
-//Returns array:
-//	[0]: Updated URL
-//	[1]: Bool of whether the page is external
-function matchExternalLink(url) {
-	let isExternalPage = true;
+function filterPostlink(url) {
 	switch (url){
 		case "http://www.katebeaton.com/Site/Welcome.html":
 			url = "http://www.harkavagrant.com/";
@@ -210,7 +221,7 @@ function matchExternalLink(url) {
 			url = "https://www.google.com/search?q=beagle+puss&tbm=isch";
 			break;
 		case "http://timelesschaos.com/":
-			url = "https://twitter.com/gankro";
+			url = "https://twitter.com/Gankra_";
 			break;
 		case "http://images.google.com/images?um=1&amp;hl=en&amp;tbs=isch%3A1&amp;sa=1&amp;q=barbasol&amp;aq=f&amp;aqi=g1&amp;aql=&amp;oq=&amp;start=0&amp;social=false":
 			url = "https://www.google.com/search?q=barbasol&tbm=isch";
@@ -225,7 +236,10 @@ function matchExternalLink(url) {
 			url = "https://wheals.github.io/blogspot/blogspot.html#need-for-steed";
 			break;
 		case "http://homestuck.bandcamp.com/":
-			url = "https://homestuck.bandcamp.com/album/homestuck-vol-8";
+			url = "https://homestuck.bandcamp.com/album/homestuck-vol-7-8-with-cherubim";
+			break;
+		case "http://homestuck.bandcamp.com/album/colours-and-mayhem-universe-a":
+			url = "http://homestuck.bandcamp.com/album/colours-and-mayhem-universe-a-b";
 			break;
 
 		case "http://www.firmanproductions.com/":
@@ -234,48 +248,33 @@ function matchExternalLink(url) {
 			break;
 		case "http://en.wikipedia.org/wiki/Betty_Crocker":
 			break;
-		case "http://homestuck.bandcamp.com/album/colours-and-mayhem-universe-a":
-			break;
 
-			//DINOSAUR COMICS???????????????????????????
-
-		default:
-			isExternalPage = false;
-	}
-	//Is page link
-	if (/mspaintadventures\.com\/\?s=/.test(url)) isExternalPage = true;
-	return [url, isExternalPage];
-}
-
-
-function convertPostlinkToDownloadableLink(url) {
-	switch(url){
 		case "https://www.youtube.com/watch?v=6dDBAiq4RFE":
-			url = "./app-content/bunny.mp4"
+			url = "external/vid/bunny.mp4"
 			break;
 		case "http://www.youtube.com/watch?v=AW3aCuxY1DY":
 		case "http://tinyurl.com/hullohumminburr":
-			url = "./app-content/howdoilive.mp4";
+			url = "external/vid/howdoilive.mp4";
 			break;
 
 		case "http://www.youtube.com/watch?v=taRyHE0al7Y":
-			url = "./app-content/rufio.mp4";
+			url = "external/vid/rufio.mp4";
 			break;
 
 		case "http://www.youtube.com/watch?v=QbsXLDNPvNc":
-			url = "./app-content/midnightcrew.mp4";
+			url = "external/vid/midnightcrew.mp4";
 			break;
 
 		case "http://tinyurl.com/MoThErFuCkInMiRaClEs":
-			url = "./app-content/miracles.mp4";
+			url = "external/vid/miracles.mp4";
 			break;
 
 		case "http://www.blackfives.com/blog_pics/carnegie_study.jpg":
-		 	url = "./app-content/carnegie_study.jpg";
+		 	url = "external/img/carnegie_study.jpg";
 		 	break;
 
 		case "http://img.photobucket.com/albums/v296/Tenebrais/MSPA/Incipisphere-5.png":
-			url ="./app-content/Incipisphere-5.png"
+			url ="external/img/Incipisphere-5.png"
 			break;
 		 case "http://bit.ly/d7kXrQ":
 		 	url = "http://www.mspaintadventures.com/storyfiles/hs2/dreambotlog/davesmeteor.jpg"
@@ -355,162 +354,19 @@ function convertPostlinkToDownloadableLink(url) {
 			.replace(`8WOPP`, `${scraps}smuut26.gif`)
 	}
 
-	if (/\/waywardvagabond\//.test(url)){
-		url = getWaywardPages(url);
-	}
-
 	return url;
-}
-
-function getWaywardPages(url){
-	var vagabondImages = [];
-	var vagabondId = url.match(/(?<=waywardvagabond\/)[A-Za-z]*/)[0];
-	var root = "http://www.mspaintadventures.com/storyfiles/hs2/waywardvagabond/"
-	var max = 0;
-	switch(vagabondId){		
-		case "recordsastutteringstep":
-		case "astudiouseye":
-			max =  6;
-			break;
-		case "windsdownsideways":
-		case "anunsealedtunnel":
-			max =  7;
-			break;
-		case "anagitatedfinger":
-			max =  4;
-			break;
-		case "beneaththegleam":
-			max =  2;
-			break;
-		case "asentrywakens":
-			max =  5;
-			break;
-		case "preparesforcompany":
-			max =  1;
-			break;
-	}
-	vagabondImages.push(`${root}${vagabondId}/index.html`)
-	for (let i = 1; i <= max; i++) vagabondImages.push(`${root}${vagabondId}/0${i}.gif`);
-	return vagabondImages;
-}
-
-function weaveArrays(array1, array2){
-	result = [];
-	i = j = k = 0;
-	while (i < array1.length && j < array2.length){
-		result[k++] = array1[i++];
-		result[k++] = array2[j++];
-	}
-	while (i < array1.length){
-		result[k++] = array1[i++];
-	}
-	while (j < array2.length){
-		result[k++] = array2[j++];
-	}
-	return result.join("");
-}
-
-function filterHtml(html) {
-	let postlinks = html.match(/<(?:img|a).*?>/g);
-	let htmlSplit = html.split(/<(?:img|a).*?>/);
-	let downloads = [];
-
-	if (postlinks !== null){
-		for (let i = 0; i < postlinks.length; i++){
-			let link =  postlinks[i].match(/(?<=src="|href=").+?(?=")/)[0];
-			let externalResult = matchExternalLink(link);
-			link = externalResult[0];
-			let isExternalPage = externalResult[1];
-			if (!isExternalPage){
-				link = convertPostlinkToDownloadableLink(link);
-				console.log(link)
-				downloads = downloads.concat(link); 
-			}
-
-			postlinks[i] = postlinks[i].replace(/(?<=src="|href=").+?(?=")/, link);
-		}
-
-		html = weaveArrays(htmlSplit, postlinks);
-	}
-
-	html = html.replace(/(\r?\n)/gm, "<br />")
-				.replace('trkstrlog', "tricksterlog")
-				.replace('sriousbiz', 'serious business')
-				.replace(/http\:\/\/(www|cdn)\.mspaintadventures\.com/g, ".")
-				.replace(/\/advimgs\//gm, "/storyfiles/")
-				.replace(/\/ryanquest\//gm, "/storyfiles/ryanquest/");
-
-	return [html, downloads];
-}
-
-//Tries not to overwrite pre-existing object
-function addObjectToData(object, s, p){
-	if (p in data[s]){
-		Object.assign(data[s][p], object);
-	}
-	else {
-		data[s][p] = object;
-	}
-}
-
-function unretcon(media) {
-	for (var i = 0; i < media.length; i++){
-		//UNRETCON EVERYTHING
-		if (/1([0-9]{4})/.test(media[i]) || /[0-9]{5}(_?retcon(?:heir)?)/.test(media[i]) ){
-			let unretconned = media[i]
-				.replace(/1([0-9]{4})/, "0$1")
-				.replace(/([0-9]{5})_?retcon(?:heir)?/, "$1");
-			media.push(unretconned);
-
-			console.log(`${media[i].slice(media[i].lastIndexOf("/"))}\x1b[35m ->UNRETCONNED\x1b[0m`);
-		}
-		else if (/PEACHY/.test(media[i])){
-			media.push("http://www.mspaintadventures.com/storyfiles/hs2/05720_2.gif");
-			media.push("http://www.mspaintadventures.com/storyfiles/hs2/scraps/CAUCASIAN.gif");
-			console.log(`${media[i].slice(media[i].lastIndexOf("/"))}\x1b[35m ->UNPEACHY'D\x1b[0m`);
-		}
-	}
-	return media;
 }
 
 //PageId will always be within 5664-5981
 function getScratchBanner(page){
-	let bannerNumber = hoverText = LEnumber = "";
-	let mspa = "http://www.mspaintadventures.com/storyfiles/hs2/";
+	let bannerNumber = "";
 	let num = parseInt(page);
-	let hussText = [
-		"BOOYEAH",
-		"... the FUCK?",
-		"Oh hell no. He's talking about ancestors, isn't he.",
-		"He's keeping little girls locked up in weird rooms, and rambling about troll ancestors. I just know it.",
-		"NOT IN MY FUCKING COMIC.",
-		"Oh, damn. This place is bigger than I thought. Any idea which way he went? Come on guys, help me out.",
-		"I bet he's behind this door. YOU HEAR ME SCRATCH, THE JIG IS UP.",
-		"Ah-ha! Caught red handed, you bastard. You stop clogging up my story with your troll fanfiction this instaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH",
-		"That was not the right door.",
-		"This looks like the right place. The hallway is all round and shit. Just like his big stupid head.",
-		"MY BEAUTIFUL PANELS WHAT HAS HE DONE. That son of a bitch. It's is going to take so many sweeps to clean this mess up. So very, very many sweeps.",
-		"God dammit, he's got a bowl full of these things?? He's pulling his snooty horseshit candy bowl stunts to mock my little arrows now. Excellent host my ass.",
-		"RAAARARRAAUUUAAAAUUAGHGHGGHGGGGHHGH! *flip*",
-		"Oh my god how can these possibly be so delicious???",
-		"Whoa, better go easy on these. Might need some later.",
-		"There you are. Go ahead, keep talking cueball. I've got you in the crosshairs of my broombristles. I have GOT you you pompous motherfucker.",
-		"Tick. Tock. Tick. Tock. Tick. Tock. My heartbeat falls in rhythm with the clock as I draw close to my prey. I leave nothing to chance, for you see it is the most dangerous prey of all, a four foot tall asshole in suspenders who won't shut up. Wait for it, Hussie. Wait for it...",
-		"RAAARARRAAUUUAAAAUUAGHGHGGHGGGGHHGH! *trip*",
-		"bap bap bap bap bap bap bap bap bap bap bap bap bap bap bap bap bap bap bap bap bap bap bap",
-		"Everybody is totally fed up with your condescending, self indulgent narrative style. They all want to go back to my slightly less condescending, slightly more self indulgent style.",
-	];
+
+	console.log(`${page}, ${num}`)
+
 
 	if (num >= 5952){
 		bannerNumber = 117 - (5981 - num);
-
-		if (bannerNumber >= 112){
-			LEnumber = bannerNumber - 111;
-		}
-		else if (bannerNumber >= 92){
-			let hussNumber = 19 - ( 111 - bannerNumber);
-			hoverText = ` title="${hussText[hussNumber]}"`;
-		}
 	}
 	else if (num >= 5937){
 		bannerNumber = 87;
@@ -540,243 +396,577 @@ function getScratchBanner(page){
 		bannerNumber = (79 - (5774 - num)).toString().padStart(2, "0");
 	}
 
-	result = `<img class="banner" src="${mspa}scratch/room${bannerNumber}.gif" ${hoverText}alt="" />`;
-	if (num >= 5976)
-		result += `<img class="scratchBanner-imgtooltip" src="${mspa}scraps/LEtext${ LEnumber }.gif" alt=""><script src="./plugins/ddimgtooltips.js"></script>`;
-	return result;
+	return `http://www.mspaintadventures.com/storyfiles/hs2/scratch/room${bannerNumber}.gif`;
 
 }
 
-async function processPage(rawPage, pageId, statusCode){
-	if (statusCode == 200){	
+function weaveArrays(array1, array2){
+	result = [];
+	i = j = k = 0;
+	while (i < array1.length && j < array2.length){
+		result[k++] = array1[i++];
+		result[k++] = array2[j++];
+	}
+	while (i < array1.length){
+		result[k++] = array1[i++];
+	}
+	while (j < array2.length){
+		result[k++] = array2[j++];
+	}
+	return result.join("");
+}
 
-		/*	
-		Get parts from raw page	
-			[0]: Title
-			[1]: Forum ID (Useless)
-			[2]: Timestamp
-			[3]: Media
-			[4]: Text
-			[5]: Next Page
-		*/
+function filterHtml(html) {
+	let postlinks = html.match(/<(?:img|a).*?>/g);
+	let htmlSplit = html.split(/<(?:img|a).*?>/);
+	let downloads = [];
 
-		let story = pageId.split("/")[0];
-		let page = pageId.split("/")[1];
+	if (postlinks !== null){
+		for (let i = 0; i < postlinks.length; i++){
+			let link =  postlinks[i].match(/(?<=src="|href=").+?(?=")/)[0];	
+			link = filterPostlink(link);
+			let doDownload = (
+				!!link.match(/\.(txt|gif|jpg|png|swf|mp3|wav)$/i)
+				&& !(/(sweetbroandhellajeff|carnegie_study|Incipisphere-5)/.test(link))
+			)
+			if (doDownload) downloads = downloads.concat(link);			
 
-		//Format page into trimmed array
-		parts = rawPage.split("###");
-		for (var i = 0; i < parts.length; i++){
-			parts[i] = parts[i].trim();
-		};
-		
-		/* if (parseInt(page) >= 5664 && parseInt(page) <= 5981) {
-			textContent = getScratchBanner(page) + textContent;
-		} */
+			postlinks[i] = postlinks[i].replace(/(?<=src="|href=").+?(?=")/, link);
+		}
 
-		let textContent;
-		let toDownload;
-		[textContent, toDownload] = filterHtml(parts[4]);
+		html = weaveArrays(htmlSplit, postlinks);
+	}
 
-		let media = filterMedia(parts[3], page);
-		toDownload = media.concat(toDownload);
-		media = media.map(x => x.replace(/http\:\/\/(www|cdn)\.mspaintadventures\.com/g, ""));
+	html = html.replace(/(\r?\n)/gm, "<br />")
+				.replace('trkstrlog', "tricksterlog")
+				.replace('sriousbiz', 'serious business')
+				// .replace(/http\:\/\/(www|cdn)\.mspaintadventures\.com/g, ".")
 
-		//Gets array of next page IDs
-		let nextId = parts[5].split(/\r?\n/);
-		nextId.pop(); //GETS RID OF EOF CHARACTER X
+	return [html, downloads];
+}
 
-		//Inits next page if it doesnt exist
-		nextId.forEach((id) =>{
-			let nextPageObject = {previous: page}
-			addObjectToData(nextPageObject, story, id);
-			//TODO: Character Selection Exceptions??
-		});
+//Tries not to overwrite pre-existing object
+function setPageObj(storyObj, pageId, pageObj){
+	storyObj[pageId] = storyObj[pageId] || {};
 
-		//Page object is assembled
-		pageObject = {
-			title: parts[0],
-			pageId: [story, page],
-			pageNumber: getPageNumber(story, page),
-			timestamp: parts[2],
-			media: media,
-			content: textContent,
-			next: nextId,
-		};
-		addObjectToData(pageObject, story, page);
-		
-		console.log(`${pageId}\x1b[36m -> PAGE OBJECT GENERATED\x1b[0m`);
-		toDownload = unretcon(toDownload);
-		console.log(`${pageId}\x1b[31m --> DOWNLOADING MEDIA\x1b[0m`);
+	storyObj[pageId] = {
+		...pageObj,
+		...storyObj[pageId]
+	}
+}
+
+function unretcon(media) {
+	for (var i = 0; i < media.length; i++){
+		//UNRETCON EVERYTHING
+		if (/1([0-9]{4})/.test(media[i]) || /(_?retcon(?:heir)?)/.test(media[i]) ){
+			let unretconned = media[i]
+				.replace(/1([0-9]{4})/g, "0$1")
+				.replace(/_?(?:preemptive)?retcon(?:heir)?/, "");
+			media.push(unretconned);
+
+			console.log(`${media[i].slice(media[i].lastIndexOf("/"))}\x1b[35m ->UNRETCONNED\x1b[0m`);
+		}
+		else if (/PEACHY/.test(media[i])){
+			media.push("http://www.mspaintadventures.com/storyfiles/hs2/05720_2.gif");
+			media.push("http://www.mspaintadventures.com/storyfiles/hs2/scraps/CAUCASIAN.gif");
+			console.log(`${media[i].slice(media[i].lastIndexOf("/"))}\x1b[35m ->UNPEACHY'D\x1b[0m`);
+		}
+	}
+	return media;
+}
+
+async function getExtraMediaUrls() {
+	let siteImages = [
+		"images/trickster_sitegraphics/bannerframe2.gif",
+		"images/trickster_sitegraphics/bluetile.gif",
+		"images/trickster_sitegraphics/menu.swf",
+		"images/trickster_sitegraphics/sucker.gif",
+		"images/trickster_sitegraphics/Z2.gif",
+		"images/a6a6_bannerframe.png",
+		"images/a6a6_latestpages.png",
+		"images/a6a6_news.png",
+		"images/a6a6_sponsors.png",
+		"images/a6a6_tooth2.gif",
+		"images/act6act5act1x2arrows.gif",
+		"images/act6act5act1x2combo.gif",
+		"images/act7_header.gif",
+		"images/archive_bq.gif",
+		"images/archive_hs.gif",
+		"images/archive_jb.gif",
+		"images/archive_ps.gif",
+		"images/bannerframe.png",
+		"images/bannerframeX2.png",
+		"images/candycorn.gif",
+		"images/candycorn_scratch.png",
+		"images/collide_header.gif",
+		"images/header_cascade.gif",
+		"images/logo.gif",
+		"images/mspalogo_sbahj.jpg",
+		"images/newreaders_sig.gif",
+		"images/news.png",
+		"images/science_faq_pimass.gif",
+		"images/science_faq_timedilation.gif",
+		"images/search_sleuth.gif",
+		"images/swampwizard.gif",
+		"images/title.png",
+		"images/unlock_codemachine.gif",
+		"images/unlock_gamecode.gif",
+		"images/v2_biglogo.gif",
+		"images/v2_mspalogo.gif",
+		"images/v2_mspalogo_scratch.gif",
+		"images/yeflask.gif"
+	]
+
+	let desktopImages = [
+		"desktops/craterblastoff_1280x1024.jpg",
+		"desktops/craterblastoff_1440x900.jpg",
+		"desktops/craterblastoff_1920x1080.jpg",
+		"desktops/craterblastoff_thumb.jpg",
+		"desktops/craterdesert_1280x1024.jpg",
+		"desktops/craterdesert_1440x900.jpg",
+		"desktops/craterdesert_1920x1080.jpg",
+		"desktops/craterdesert_thumb.jpg",
+		"desktops/craterisland_1280x1024.jpg",
+		"desktops/craterisland_1440x900.jpg",
+		"desktops/craterisland_1920x1080.jpg",
+		"desktops/craterisland_thumb.jpg",
+		"desktops/daveapt_1280x1024.jpg",
+		"desktops/daveapt_1440x900.jpg",
+		"desktops/daveapt_1920x1080.jpg",
+		"desktops/daveapt_thumb.jpg",
+		"desktops/endpose_1440x900.jpg",
+		"desktops/endpose_1920x1080.jpg",
+		"desktops/jadehouse_1280x1024.jpg",
+		"desktops/jadehouse_1440x900.jpg",
+		"desktops/jadehouse_1920x1080.jpg",
+		"desktops/jadehouse_thumb.jpg",
+		"desktops/johnhouse_1280x1024.jpg",
+		"desktops/johnhouse_1440x900.jpg",
+		"desktops/johnhouse_1920x1080.jpg",
+		"desktops/johnhouse_thumb.jpg",
+		"desktops/mcwpp_1280x1024.jpg",
+		"desktops/mcwpp_1440x900.jpg",
+		"desktops/mcwpp_1920x1080.jpg",
+		"desktops/mcwpp_thumb.jpg",
+		"desktops/office_1440x900.jpg",
+		"desktops/office_1920x1080.jpg",
+		"desktops/PS_endpose_desktop.jpg",
+		"desktops/PS_endpose_desktop_thumb.jpg",
+		"desktops/PS_office_desktop.jpg",
+		"desktops/PS_office_desktop_thumb.jpg",
+		"desktops/skaia_1280x1024.jpg",
+		"desktops/skaia_1440x900.jpg",
+		"desktops/skaia_1920x1080.jpg",
+		"desktops/skaia_thumb.jpg",
+	]
+
+	let scraps = [
+		"firefly_sprite_opt.png",
+		"firefly_sprite_left_opt.png",
+		"extras/PS_titlescreen/PS_titlescreen.swf",
+		"storyfiles/hs2/echidna/echidna.swf",
+		"storyfiles/hs2/scraps/calliope.gif",
+		"storyfiles/hs2/scraps/LEtext1.gif",
+		"storyfiles/hs2/scraps/LEtext2.gif",
+		"storyfiles/hs2/scraps/LEtext3.gif",
+		"storyfiles/hs2/scraps/LEtext4.gif",
+		"storyfiles/hs2/scraps/LEtext5.gif",
+		"storyfiles/hs2/scraps/LEtext6.gif",
+		"storyfiles/hs2/00253/afterthought-showtime_piano.mp3",
+		"storyfiles/hs2/00253/mspa_harlequin.mp3",
+		"storyfiles/hs2/00253/wind.wav",
+		"storyfiles/hs2/songs/alterniaboundsongs/A%20Tender%20Moment.mp3",
+		"storyfiles/hs2/songs/alterniaboundsongs/Alterniabound.mp3",
+		"storyfiles/hs2/songs/alterniaboundsongs/boyskylark.mp3",
+		"storyfiles/hs2/songs/alterniaboundsongs/Crustacean.mp3",
+		"storyfiles/hs2/songs/alterniaboundsongs/ERROR.mp3",
+		"storyfiles/hs2/songs/alterniaboundsongs/herosgrowth.mp3",
+		"storyfiles/hs2/songs/alterniaboundsongs/Horschestra.mp3",
+		"storyfiles/hs2/songs/alterniaboundsongs/MEGALOVANIA.mp3",
+		"storyfiles/hs2/songs/alterniaboundsongs/Nic_Cage_Romance.mp3",
+		"storyfiles/hs2/songs/alterniaboundsongs/phrenicphever.mp3",
+		"storyfiles/hs2/songs/alterniaboundsongs/secretrom.mp3",
+		"storyfiles/hs2/songs/alterniaboundsongs/spidersclawLOOP2.mp3",
+		"storyfiles/hs2/songs/alterniaboundsongs/terezistheme.mp3",
+		"storyfiles/hs2/songs/alterniaboundsongs/THE_NIC_CAGE_SONG.mp3",
+		"storyfiles/hs2/songs/alterniaboundsongs/VriskasTheme3.mp3",
+		"storyfiles/hs2/songs/alterniaboundsongs/walkstabwalk.mp3",
+		"scraps2/AHdance.gif",
+		"scraps2/LONGWAYSBUNP.jpg",
+		"scraps2/LONGWAYSBUNPizza.jpg",
+		"scraps2/hscrollarrow.gif",
+		"scraps2/vigilprince.gif",
+		"artcredits",
+		"soundcredits"
+	]
+
+	try {
+		var response = await got("https://www.homestuck.com/map/story");
+		var dom = new JSDOM(response.body)
+		var mapImages = [...dom.window.document.getElementsByTagName('img')].map(img => img.src.split("images/")[1])
+		mapImages.push('maps/map_04.gif');
+		dom.window.close();
+	}
+	catch (error) {
+		console.log(error + "Homestuck dot com fuckin cockblocked us")
+	}
+	
+	return [].concat(
+		siteImages,
+		desktopImages,
+		mapImages,
+		scraps
+	)
+}
+
+async function getParadoxSpaceUrls() {
+	let comicPages = [];
+	for (let i = 0; i < 291; i++){
+
+	}
+	
+	return [].concat(
+	)
+}
+
+function processLogsPage(rawPage, pageId){
+	let story = pageId.replace("logs/log_", "")
+	let content = rawPage
+				.replace(/\?s=\d&p=/g, '/mspa/')
+				.match(/^.*(?=<br>)/gm)
+
+	setPageObj(data.logs, story, content);
+}
+
+async function processExtrasPage(rawPage, pageId){
+	let story = pageId.split("/")[0];
+	let page = pageId.split("/")[1];
+
+	const dom = new JSDOM(rawPage);
+	let content = dom.window.document.getElementsByTagName('table')[2];
+
+	if (story === "waywardvagabond") {
+		[...content.getElementsByTagName('img')].map(img => {img.src = `http://www.mspaintadventures.com/storyfiles/hs2/${pageId}/${img.src}`})
+	}
+	
+	let toDownload = [...content.getElementsByTagName('img')].map(img => img.src)
+
+	dom.window.close();
+
+	pageObject = {
+		title: "MS Paint Adventures", 
+		pageId: page,
+		content: content.innerHTML,
+	};
+	setPageObj(data[(story === "extras") ? "psExtras" : "wv"], page, pageObject);
+	
+	try {
 		await downloadMedia(toDownload);
 	}
-	else if (statusCode == 404){
-		//Skip page
-		console.log(`${pageId}\x1b[33m-> 404, SKIPPING PAGE\x1b[0m`);
+	catch(error) {
+		console.log(error)
+	}
+}
+
+async function processCreditsPage(rawPage, pageId){
+	const dom = new JSDOM(rawPage);
+
+	let content;
+	if (/art/.test(pageId))
+		content = dom.window.document.getElementsByTagName('table')[2]
+	else if (/sound/.test(pageId))
+		content = dom.window.document.getElementById('content');
+
+	dom.window.close();
+
+	pageObject = {
+		title: "MS Paint Adventures", 
+		pageId: pageId,
+		content: content.innerHTML,
+	};
+	setPageObj(data.credits, pageId, pageObject);
+	
+}
+
+async function getBackFile(story, page) {
+	let url = `http://www.mspaintadventures.com/${story}_back/${page}.txt`
+	try {
+		var response = await got(url);
+		console.log (`${story}/${page}\x1b[32m ----> GOT BACK FILE "${response.body}"\x1b[0m `);
+		return response.body
+	}
+	catch (error){
+		if (!('response' in error)){
+			console.log(error)
+			console.log(`${story}/${page} \x1b[33m-> 404, GENERAL ERROR\x1b[0m `);
+		}
+		else if (error.response.statusCode == "404") {
+			console.log(`${story}/${page} \x1b[33m-> 404, SKIPPING PAGE\x1b[0m `);
+		}
+		else {
+			console.log(`${story}/${page} \x1b[33m ${error.response.statusCode}: URL (${url}) is not valid.\x1b[0m`);
+		}
+	}
+}
+
+async function processMspaPage(rawPage, pageId){
+	/*
+	Get parts from raw page	
+		[0]: Title
+		[1]: Forum ID (Useless)
+		[2]: Timestamp
+		[3]: Media
+		[4]: Text
+		[5]: Next Page
+	*/
+
+	let story = pageId.split("/")[0];
+	let page = pageId.split("/")[1];
+
+	//Format page into trimmed array
+	var parts = rawPage.split("###");
+	for (var i = 0; i < parts.length; i++){
+		parts[i] = parts[i].trim();
+	};
+
+	let textContent;
+	let toDownload;
+	[textContent, toDownload] = filterHtml(parts[4]);
+
+	let flag = parts[3].match(/^(F|J|S)(?=\|)/gm);
+	if (flag) flag = flag[0]
+
+	let media = await filterMedia(parts[3], page);
+	toDownload = media.concat(toDownload);
+	media = media.map(x => x.replace(/http\:\/\/((www|cdn)\.)?mspaintadventures\.com/g, ""));
+
+	if (parseInt(page) >= 5664 && parseInt(page) <= 5981) {
+		toDownload.push(getScratchBanner(page));
 	}
 
-	workerCount -= 1;
-	pagesReturned += 1;
-	console.log (`${pageId}\x1b[32m ----> COMPLETED\x1b[0m (${pagesReturned}/${totalPages})`);
-	scrape(); //It's recursive motherfucker
+	//Gets array of next page IDs
+	let nextId = parts[5].split(/\r?\n/);
+	nextId.pop(); //GETS RID OF EOF CHARACTER X
+
+	//Inits next page if it doesnt exist
+	if (story == "ryanquest") {
+		nextId.forEach((id) =>{
+			setPageObj(data.ryanquest, id, {previous: page});
+		});
+	}
+	else{
+		let previous = await getBackFile(story, page);
+		if (previous) setPageObj(data.mspa, page, {previous: previous});
+	}
+
+	//Page object is assembled
+	pageObject = {
+		title: parts[0],
+		pageId: page,
+		timestamp: parts[2],
+		flag: flag,
+		media: media,
+		content: textContent,
+		next: nextId,
+	};
+	if (story == "ryanquest") {
+		setPageObj(data.ryanquest, page, pageObject);
+	}
+	else {
+		setPageObj(data.mspa, page, pageObject);
+	}
+
+	toDownload = unretcon(toDownload);
+	console.log(`${pageId}\x1b[36m -> PAGE OBJECT GENERATED, DOWNLOADING MEDIA\x1b[0m`);
+
+	try {
+		await downloadMedia(toDownload);
+	}
+	catch(error) {
+		console.log(error)
+	}
 }
 
 //@pageId = "Y/0XXXXX"
 async function deployWorker(pageId){
-	workerCount += 1;
+	workerCount++;
 
-	url = `http://www.mspaintadventures.com/${ pageId }.txt`;
-	request(url, (error, response, html) => {
-		if ((!error && response.statusCode == 200) || response.statusCode == 404){
-			processPage(html, pageId, response.statusCode);
-		}
-		else{
-			console.log('\x1b[33m' + response.statusCode +": URL (" + url + ") is not valid." + '\x1b[0m');
-			process.exit();
-		}
-	})
+	let url = "";
+	if (/\.(gif|jpg|png|swf|mp3|wav)$/.test(pageId)){
+		//pageId is a straight media link
+		url = `http://www.mspaintadventures.com/${pageId}`;
+	}
+	else if (/^(\d|ryanquest|logs)\//.test(pageId)){
+		url = `http://www.mspaintadventures.com/${ pageId }.txt`;
+	}
+	else if (/^waywardvagabond/.test(pageId)) {
+		url = `http://www.mspaintadventures.com/storyfiles/hs2/${ pageId }`;
+	}
+	else if (/^(extras|soundcredits|artcredits)/.test(pageId)) {
+		url = `http://www.mspaintadventures.com/${ pageId }.html`;
+	}
+	else if (/^sbahj/.test(pageId)) {
+		await processSbahj();
+		pageId = undefined;
+	}
 
-	await sleep(150);
+
+	if (!!pageId) {
+		if (/\.(gif|jpg|png|swf|mp3|wav)$/.test(pageId)) {
+			await downloadMedia([url])
+			console.log (`${pageId}\x1b[32m ----> COMPLETED\x1b[0m (${++pagesCompleted}/${totalPages})`);
+		}
+		else {
+			try {
+				var rawPage		
+				if (/^(4\/00|logs\/log_4)/.test(pageId)){
+					let response = await got(url, {responseType: 'buffer'});
+					rawPage = iconv.decode(response.body, 'latin1')
+				}
+				else {
+					let response = await got(url);
+					rawPage = response.body
+				}
+				if (/^(\d|ryanquest)\//.test(pageId)){
+					await processMspaPage(rawPage, pageId)
+				}
+				if (/^(logs)\//.test(pageId)){
+					processLogsPage(rawPage, pageId)
+				}
+				else if (/^(waywardvagabond|extras)\//.test(pageId)) {
+					await processExtrasPage(rawPage, pageId)
+				}
+				else if (/^(soundcredits|artcredits)/.test(pageId)) {
+					await processCreditsPage(rawPage, pageId)
+				}
+				else if (/^(soundcredits|artcredits)/.test(pageId)) {
+					await processCreditsPage(rawPage, pageId)
+				}
+				console.log (`${pageId}\x1b[32m ----> COMPLETED\x1b[0m (${++pagesCompleted}/${totalPages})`);
+			}
+			catch (error){
+				if (!('response' in error)){
+					console.log(error)
+					console.log(`${pageId} \x1b[33m-> 404, GENERAL ERROR\x1b[0m (${++pagesCompleted}/${totalPages})`);
+				}
+				else if (error.response.statusCode == "404") {
+					console.log(`${pageId} \x1b[33m-> 404, SKIPPING PAGE\x1b[0m (${++pagesCompleted}/${totalPages})`);
+				}
+				else {
+					console.log(`${pageId} \x1b[33m ${error.response.statusCode}: URL (${url}) is not valid.\x1b[0m (${++pagesCompleted}/${totalPages})`);
+				}
+			}
+		}
+	}
+
+	workerCount--;
+
+	scrape();
 }
 
-
-function mapPageNumber(pageNumber){
-	/*
-	s=1.) Jailbreak p=(000002-000135 + jb2_000000)
-		000001 & 000007 are missing
-		Finishes on unique number 
-
-	s=2.) Bard Quest p=(000136 + 000171-000216)
-		Starts on 000136, then skips to 000171
-
-	s=3.) Blood Spade p=(MC0001)
-		Presumably replaces 000217 or 000218
-
-	s=4.) Problem Sleuth p=(000219-001892)
-		000992 is missing
-
-	s=5.) Homestuck Beta p=(001893-1900)
-
-	s=6.) Homestuck p=(001901-010030)
-
-		004299, 004938, 004988 are missing
-		008270 is a direct clone of 008269
-
-		pony is linked from 002838
-		pony2 is linked from 006517
-
-		darkcage exists, but is not linked
-		darkcage 2 is linked from 006927
-		
-		006715 redirects to DOTA
-		008801 redirects to GAME OVER
-		009305 redirects to shes8ack
-		009987 redirects to Collide
-		010027 redirects to Act 7
-		010030 redirects to endcredits
-
-	s=ryanquest.) Ryanquest p=(000001-0000015)
-	*/
-	
-	let s;
-	//JAILBREAK
-	if (pageNumber <= 135 && pageNumber >= 2){
-		s = "1";
-		//Take advantage of missing page to grab final page
-		if (pageNumber == "7"){
-			return (s + "/jb2_000000");
+async function scrape(){
+	if (pages.length > 0) {
+		while (workerCount < workerMax && pages.length > 0){
+			let pageId = pages.shift();
+			deployWorker(pageId);
 		}
 	}
-
-	//BARDS QUEST
-	else if (pageNumber == 136 || (pageNumber >= 171 && pageNumber <= 216)) {
-		s = "2";
-	}
-
-	//RYANQUEST
-	else if (pageNumber <= 151 && pageNumber >= 137) {
-		s = "ryanquest";
-		p = pageNumber - 136;
-		return  (s + "/" + p.toString().padStart(6, "0"));
-	}
-
-	//BLOOD SPADE + HOMESTUCK EXTRAS
-	else if (pageNumber <= 156 && pageNumber >= 152){
-		switch (pageNumber){
-			case 152:
-				return ("3/MC0001");
-			case 153:
-				return ("6/pony");
-			case 154:
-				return ("6/pony2");
-			case 155:
-				return ("6/darkcage");
-			case 156:
-				return ("6/darkcage2");
-		}
-	}
-
-	//PROBLEM SLEUTH
-	else if (pageNumber <= 1892 && pageNumber >= 219 && !(pageNumber == 992)){
-		s = "4";
-	}
-
-	//HOMESTUCK BETA
-	else if (pageNumber <= 1900 && pageNumber >= 1893){
-		s = "5";
-	}
-
-	//HOMESTUCK
-	else if (pageNumber <= 10030 && pageNumber >= 1901 && !(pageNumber == 4299 || pageNumber == 4938 || pageNumber == 4988)){
-		s = "6";
-	}
-
-	if (s) return  (s + "/" + pageNumber.toString().padStart(6, "0"));
-	else return "0";
-
-}
-
-function scrape(){
-	if ((pagesRequested < totalPages) && (currentPage() <= endPage) && currentPage() <= 10030 ){
-		while ((workerCount < workerMax) && (pagesRequested < totalPages)){
-			let p = mapPageNumber(currentPage());
-			pagesRequested++;
-			deployWorker(p);
-		}
-	}
-	else if (pagesReturned == totalPages){
+	else if (workerCount <= 0){
 		console.log("Task complete.");
 		let json = JSON.stringify(data);
 		fs.writeFile(`${outputDir}/story.json`, json, 'utf8', () =>{
 			console.log("JSON Saved.");
-			process.exit();
+			//process.exit();
 		});
-	}
+	} 
 }
 
-function initialize(){
+async function init() {
+	pages = [];
 	data = {
-		"1": {},
-		"2": {},
-		"3": {},
-		"4": {},
-		"5": {},
-		"6": {},
+		"mspa": {},
 		"ryanquest": {},
+		"psExtras": {},
+		"wv":{},
+		"credits": {},
+		"logs": {}
 	}
 
-	//begin process
-	// let hasffmpeg = ffb.locateBinariesSync(['ffmpeg'], { paths: "./", ensureExecutable: true }).ffmpeg.found;
-	// if (!hasffmpeg){
-	// 	console.log('Downloading ffmpeg.');
-	// 	ffb.downloadBinaries(['ffmpeg'], {}, function () {
-	// 		console.log('Downloaded ffmpeg. starting scraper');
-	// 		scrape();
-	// 	});
-	// }
-	// else{
-		console.log('ffmpeg already exists. starting scraper');
-		scrape();
-	//}
+	if (dataOptions.has('custom')) {
+		pages = pages.concat(['4/000805', '4/001049']);
+	}
+
+	if (dataOptions.has('jb')) {
+		pages = pages.concat([...Array(134).keys()].map(x => "1/"+(x + 2).toString().padStart(6, "0")).concat(['1/jb2_000000']));
+	}
+	if (dataOptions.has('bq')) {
+		pages = pages.concat([...Array(81).keys()].map(x => "2/"+(x + 136).toString().padStart(6, "0")));
+	}
+	if (dataOptions.has('ps')) {
+		pages = pages.concat([...Array(1674).keys()].map(x => "4/"+(x + 219).toString().padStart(6, "0")));
+	}
+	if (dataOptions.has('beta')) {
+		pages = pages.concat([...Array(8).keys()].map(x => "5/"+(x + 1893).toString().padStart(6, "0")));
+	}
+	if (dataOptions.has('hs1')) {
+		pages = pages.concat([...Array(1988).keys()].map(x => "6/"+(x + 1901).toString().padStart(6, "0")).concat(['6/pony'])); //Acts 1-4
+	}
+	if (dataOptions.has('hs2')) {
+		pages = pages.concat([...Array(2124).keys()].map(x => "6/"+(x + 3889).toString().padStart(6, "0"))); //Act 5
+	}
+	if (dataOptions.has('hs3')) {
+		pages = pages.concat([...Array(2135).keys()].map(x => "6/"+(x + 6013).toString().padStart(6, "0")).concat(['6/darkcage', '6/darkcage2', '6/pony2'])); //Act 6
+	}
+	if (dataOptions.has('hs4')) {
+		pages = pages.concat([...Array(1888).keys()].map(x => "6/"+(x + 8143).toString().padStart(6, "0"))); //Act 6 Act 6 + Act 7
+	}
+	if (dataOptions.has('rq')) {
+		pages = pages.concat([...Array(15).keys()].map(x => "ryanquest/"+(x + 1).toString().padStart(6, "0")).concat(['3/MC0001'])); //Ryanquest, BloodSpade
+	}
+	if (dataOptions.has('psExtras')) {
+		pages = pages.concat([...Array(40).keys()].map(x => "extras/ps"+(x + 1).toString().padStart(6, "0")));
+	}
+	if (dataOptions.has('wv')) {
+		pages = pages.concat(['recordsastutteringstep', 'astudiouseye', 'windsdownsideways', 'anunsealedtunnel', 'anagitatedfinger','beneaththegleam', 'asentrywakens', 'preparesforcompany'].map(x => "waywardvagabond/" + x));
+	}
+	if (dataOptions.has('logs')) {
+		pages = pages.concat([1, 2, 4, 5, 6].map(x => `logs/log_${x}`));
+	}
+	if (dataOptions.has('sbahj')) {
+		pages = pages.concat([...Array(54).keys()].map(x => `sweetbroandhellajeff/archive/0${(x + 1).toString().padStart(2, "0")}.jpg`))
+			.concat([
+				"awyeahbitches.gif",
+				"back.jpg",
+				"first.jpg",
+				"logo.jpg",
+				"madlewwtz.gif",
+				"makemesomemoney.gif",
+				"moneytile.gif",
+				"new.jpg",
+				"next.jpg",
+				"sbahj_bookbanner.jpg",
+				"SBAHJ_shirtbanner1.jpg",
+				"SBAHJ_shirtbanner2.jpg",
+				"SBAHJ_shirtbanner3.jpg",
+				"SBAHJ_shirtbanner4.jpg",
+				"skaterboarder.jpg",
+				"movies/SBAHJthemovie1.swf"
+			].map(x => `sweetbroandhellajeff/${x}` ));
+		pages[20] = pages[20].replace( '\.jpg', '\.gif' );
+		pages[28] = pages[28].replace( '\.jpg', '\.gif' );
+		pages[33] = pages[33].replace( '\.jpg', '\.gif' );
+		pages[48] = pages[48].replace( '\.jpg', '\.gif' );
+	}
+	if (dataOptions.has('pxs')) {
+		pages = pages.concat(await getParadoxSpaceUrls());
+	}
+	if (dataOptions.has('extraMedia')) {
+		pages = pages.concat( await getExtraMediaUrls());
+	}
+
+	pagesCompleted = 0;
+	totalPages = pages.length;
+	scrape();
 }
 
-initialize();
+init();
